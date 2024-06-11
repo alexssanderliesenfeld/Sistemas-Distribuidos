@@ -1,30 +1,105 @@
-import threading 
-from client import cliente
-from garcon import garcon
+import threading
+import time
+import random
 
-numero_de_pedidos_por_garcon = 2
 
-pedidos = []
-garcons = []
-clientes = []
+class Cliente(threading.Thread):
+    def __init__(self, nome, bar):
+        super().__init__()
+        self.nome = nome
+        self.bar = bar
 
-def fazer_pedido(pedido):
-    print('feito pedido')
-    pedidos.append(pedido)
-    return len(pedidos)
+    def run(self):
+        while not self.bar.fechou:
+            self.bar.faz_pedido(self)
+            self.bar.espera_pedido(self)
+            self.bar.recebe_pedido(self)
+            self.bar.consome_pedido(self)
+            # Tempo aleatório para fazer um novo pedido
+            time.sleep(random.uniform(1, 5))
 
-def bar_tender():
-    print('bar aberto')
-    for i in range(5):
-        print(f'adicionado cliente {i}')
-        cl = threading.Thread(target=cliente)
-        cl.run()
-    print('\n')
-    for i in range(5):
-        print(f'adicionado garçon {i}')
-        garcons.append(threading.Thread(target=garcon, args=[clientes]))
-        # garcons[i].run()
 
-if __name__ == '__main__':
-    bar_tender()
-# threading.Thread(target=)
+class Garcom(threading.Thread):
+    def __init__(self, nome, bar, capacidade_atendimento):
+        super().__init__()
+        self.nome = nome
+        self.bar = bar
+        self.capacidade_atendimento = capacidade_atendimento
+
+    def run(self):
+        while not self.bar.fechou:
+            self.bar.recebe_maximo_pedidos(self)
+            self.bar.registra_pedidos(self)
+            self.bar.rodada += 1
+
+
+class Bar:
+    def __init__(self, num_clientes, num_garcons, capacidade_atendimento, num_rodadas):
+        self.num_clientes = num_clientes
+        self.num_garcons = num_garcons
+        self.capacidade_atendimento = capacidade_atendimento
+        self.num_rodadas = num_rodadas
+        self.fechou = False
+        self.clientes = []
+        self.garcons = []
+        self.pedidos = [[] for _ in range(num_garcons)]
+        self.rodada = 0
+
+        for i in range(self.num_clientes):
+            cliente = Cliente(f"Cliente {i+1}", self)
+            self.clientes.append(cliente)
+
+        for i in range(self.num_garcons):
+            garcom = Garcom(f"Garçom {i+1}", self, self.capacidade_atendimento)
+            self.garcons.append(garcom)
+
+    def faz_pedido(self, cliente):
+        garcom_index = random.randint(0, self.num_garcons - 1)
+        self.pedidos[garcom_index].append(cliente)
+        print(f"{cliente.nome} fez um pedido.")
+
+    def espera_pedido(self, cliente):
+        while cliente not in self.pedidos[self.pedidos.index([p for p in self.pedidos if cliente in p][0])]:
+            pass
+
+    def recebe_pedido(self, cliente):
+        garcom_index = self.pedidos.index(
+            [p for p in self.pedidos if cliente in p][0])
+        print(
+            f"{self.garcons[garcom_index].nome} recebeu o pedido de {cliente.nome}.")
+
+    def consome_pedido(self, cliente):
+        print(f"{cliente.nome} está consumindo seu pedido.")
+
+    def recebe_maximo_pedidos(self, garcom):
+        while len(self.pedidos[self.garcons.index(garcom)]) < self.capacidade_atendimento:
+            pass
+
+    def registra_pedidos(self, garcom):
+        garcom_index = self.garcons.index(garcom)
+        pedidos = self.pedidos[garcom_index]
+        print(f"{garcom.nome} está registrando pedidos.")
+        for cliente in pedidos:
+            print(f"{garcom.nome} está atendendo o pedido de {cliente.nome}.")
+            self.pedidos[garcom_index].remove(cliente)
+        print(f"{garcom.nome} atendeu todos os pedidos.")
+
+    def iniciar_simulacao(self):
+        for garcom in self.garcons:
+            garcom.start()
+        for cliente in self.clientes:
+            cliente.start()
+
+        while self.rodada < self.num_rodadas:
+            print(f"Rodada {self.rodada + 1}:")
+            time.sleep(1)  # Simula o tempo de uma rodada
+            self.rodada += 1
+
+        self.fechou = True
+        print("O bar fechou.")
+
+
+# Exemplo de utilização
+bar = Bar(num_clientes=10, num_garcons=2,
+          capacidade_atendimento=3, num_rodadas=5)
+bar.iniciar_simulacao()
