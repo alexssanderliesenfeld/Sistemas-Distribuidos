@@ -19,7 +19,6 @@ def bar_tender():
         print(f'adicionado cliente {i}')
         cl = threading.Thread(target=cliente)
         cl.run()
-        # clientes[i].run()
     print('\n')
     for i in range(5):
         print(f'adicionado garçon {i}')
