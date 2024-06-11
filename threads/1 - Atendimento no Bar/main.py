@@ -10,7 +10,9 @@ class Cliente(threading.Thread):
         self.bar = bar
 
     def run(self):
-        while not self.bar.fechou:
+        while True:
+            if self.bar.fechou and not any(self.bar.pedidos):
+                break
             self.bar.faz_pedido(self)
             self.bar.espera_pedido(self)
             self.bar.recebe_pedido(self)
@@ -27,7 +29,9 @@ class Garcom(threading.Thread):
         self.capacidade_atendimento = capacidade_atendimento
 
     def run(self):
-        while not self.bar.fechou:
+        while True:
+            if self.bar.fechou and not any(self.bar.pedidos):
+                break
             self.bar.recebe_maximo_pedidos(self)
             self.bar.registra_pedidos(self)
             self.bar.rodada += 1
@@ -59,21 +63,25 @@ class Bar:
         print(f"{cliente.nome} fez um pedido.")
 
     def espera_pedido(self, cliente):
-        while cliente not in self.pedidos[self.pedidos.index([p for p in self.pedidos if cliente in p][0])]:
-            pass
+        while not any(cliente in p for p in self.pedidos):
+            if self.fechou:
+                break
 
     def recebe_pedido(self, cliente):
-        garcom_index = self.pedidos.index(
-            [p for p in self.pedidos if cliente in p][0])
-        print(
-            f"{self.garcons[garcom_index].nome} recebeu o pedido de {cliente.nome}.")
+        for i, pedidos_garcom in enumerate(self.pedidos):
+            if cliente in pedidos_garcom:
+                garcom_index = i
+                print(
+                    f"{self.garcons[garcom_index].nome} recebeu o pedido de {cliente.nome}.")
+                break
 
     def consome_pedido(self, cliente):
         print(f"{cliente.nome} está consumindo seu pedido.")
 
     def recebe_maximo_pedidos(self, garcom):
         while len(self.pedidos[self.garcons.index(garcom)]) < self.capacidade_atendimento:
-            pass
+            if self.fechou:
+                break
 
     def registra_pedidos(self, garcom):
         garcom_index = self.garcons.index(garcom)
@@ -97,6 +105,14 @@ class Bar:
 
         self.fechou = True
         print("O bar fechou.")
+
+        # Espera todas as threads terminarem antes de encerrar
+        for garcom in self.garcons:
+            garcom.join()
+        for cliente in self.clientes:
+            cliente.join()
+
+        print("Todas as threads foram concluídas.")
 
 
 # Exemplo de utilização
