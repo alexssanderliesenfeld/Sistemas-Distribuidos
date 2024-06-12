@@ -1,61 +1,102 @@
-import random
-import threading
-import time
+// Barbearia.java
+import java.util.LinkedList;
+import java.util.Queue;
 
-class BarbeiroDorminhoco:
-    def __init__(self, cadeiras):
-        self.cadeiras = cadeiras
-        self.clientes_esperando = 0  # Número de clientes esperando
-        self.mutex = threading.Lock()  # Mutex para proteger as variáveis compartilhadas
-        self.barbeiro_dormindo = True  # Sinalizador para indicar se o barbeiro está dormindo
-        self.barbeiro_monitor = threading.Condition(self.mutex)  # Monitor para o barbeiro
+public class Barbearia {
+    private final int numeroDeCadeiras;
+    private final Queue<Cliente> filaDeEspera;
 
-    def cortar_cabelo(self, cliente):
-        with self.mutex:
-            self.clientes_esperando -= 1
-            print(f"{cliente.nome} está cortando o cabelo.")
-            time.sleep(3)  # Simula o tempo de corte de cabelo
-            print(f"{cliente.nome} terminou o corte de cabelo.")
+    public Barbearia(int numeroDeCadeiras) {
+        this.numeroDeCadeiras = numeroDeCadeiras;
+        this.filaDeEspera = new LinkedList<>();
+    }
 
-    def atender_cliente(self):
-        with self.mutex:
-            if self.barbeiro_dormindo:
-                self.barbeiro_dormindo = False
-                self.barbeiro_monitor.notify()  # Acorda o barbeiro
-            self.clientes_esperando += 1
-            print(f"{cliente.nome} está esperando por uma cadeira.")
+    public synchronized void entrarNaBarbearia(Cliente cliente) {
+        if (filaDeEspera.size() == numeroDeCadeiras) {
+            System.out.println(cliente.getNome() + " saiu porque não havia cadeiras disponíveis.");
+        } else {
+            filaDeEspera.add(cliente);
+            System.out.println(cliente.getNome() + " sentou-se para esperar.");
+            notifyAll(); // Notifica o barbeiro que há um cliente esperando
+        }
+    }
 
-    def esperar_cadeira(self):
-        with self.mutex:
-            while self.clientes_esperando >= self.cadeiras or self.barbeiro_dormindo:
-                self.barbeiro_monitor.wait()  # Espera o barbeiro estar disponível
-            print(f"{cliente.nome} sentou-se na cadeira.")
+    public synchronized Cliente obterProximoCliente() {
+        while (filaDeEspera.isEmpty()) {
+            try {
+                System.out.println("Barbeiro está dormindo...");
+                wait(); // Barbeiro dorme enquanto não há clientes
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        return filaDeEspera.poll();
+    }
+}
 
-class Cliente(threading.Thread):
-    def __init__(self, nome, barbeiro):
-        super().__init__()
-        self.nome = nome
-        self.barbeiro = barbeiro
+// Cliente.java
+public class Cliente implements Runnable {
+    private final String nome;
+    private final Barbearia barbearia;
 
-    def run(self):
-        self.barbeiro.atender_cliente()
-        self.barbeiro.esperar_cadeira()
-        self.barbeiro.cortar_cabelo(self)
+    public Cliente(String nome, Barbearia barbearia) {
+        this.nome = nome;
+        this.barbearia = barbearia;
+    }
 
-barbeiro = BarbeiroDorminhoco(3)  # 3 cadeiras na barbearia
-num_clientes = 5  # Número de clientes
+    public String getNome() {
+        return nome;
+    }
 
-clientes = []
-for i in range(num_clientes):
-    cliente = Cliente(f"Cliente {i+1}", barbeiro)
-    clientes.append(cliente)
+    @Override
+    public void run() {
+        System.out.println(nome + " entrou na barbearia.");
+        barbearia.entrarNaBarbearia(this);
+    }
+}
 
-for cliente in clientes:
-    cliente.start()
+// Barbeiro.java
+public class Barbeiro implements Runnable {
+    private final Barbearia barbearia;
 
-time.sleep(10)  # Tempo de simulação
+    public Barbeiro(Barbearia barbearia) {
+        this.barbearia = barbearia;
+    }
 
-barbeiro.barbeiro_monitor.acquire()
-barbeiro.barbeiro_dormindo = True
-barbeiro.barbeiro_monitor.notify()
-barbeiro.barbeiro_monitor.release()
+    @Override
+    public void run() {
+        while (true) {
+            Cliente cliente = barbearia.obterProximoCliente();
+            if (cliente != null) {
+                System.out.println("Barbeiro está cortando o cabelo de " + cliente.getNome());
+                try {
+                    Thread.sleep(3000); // Simula o tempo de cortar o cabelo
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                System.out.println("Barbeiro terminou de cortar o cabelo de " + cliente.getNome());
+            }
+        }
+    }
+}
+
+// Main.java
+public class Main {
+    public static void main(String[] args) {
+        Barbearia barbearia = new Barbearia(3); // Barbearia com 3 cadeiras
+        Thread barbeiroThread = new Thread(new Barbeiro(barbearia));
+        barbeiroThread.start();
+
+        // Criando e iniciando threads de clientes
+        for (int i = 1; i <= 10; i++) {
+            Cliente cliente = new Cliente("Cliente " + i, barbearia);
+            Thread clienteThread = new Thread(cliente);
+            clienteThread.start();
+            try {
+                Thread.sleep(1000); // Intervalo entre a chegada dos clientes
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+}
